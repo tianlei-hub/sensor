@@ -1,0 +1,19 @@
+# 构建产物
+build/
+*.elf
+*.hex
+*.bin
+*.map
+*.o
+*.obj
+
+# CubeMX
+mx.scratch
+!.settings
+
+# IDE
+.idea/
+
+# 系统文件
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug STM32F407 (OpenOCD)",
+            "cwd": "${workspaceFolder}",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "openocd",
+            "serverpath": "C:/openocd/bin/openocd.exe",
+            "searchDir": ["C:/openocd/share/openocd/scripts"],
+            "device": "STM32F407VG",
+            "executable": "${workspaceFolder}/build/Debug/sensor.elf",
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/stm32f4x.cfg"
+            ],
+            "openOCDPreConfigLaunchCommands": [
+                "adapter speed 1000"
+            ],
+            "gdbPath": "D:/Program Files/ARM GNU/14.3 rel1/bin/arm-none-eabi-gdb.exe",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "parsed"
+        }
+    ]
+}

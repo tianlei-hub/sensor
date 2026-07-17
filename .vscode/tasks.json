@@ -1,0 +1,62 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Flash (编译+下载)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build/Debug",
+                "--target",
+                "flash"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "detail": "编译并下载到 STM32F407"
+        },
+        {
+            "label": "Erase (擦除芯片)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build/Debug",
+                "--target",
+                "erase"
+            ],
+            "group": "build",
+            "problemMatcher": "$gcc",
+            "detail": "全片擦除 STM32F407 Flash"
+        },
+        {
+            "label": "Erase + Flash (擦除+下载)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build/Debug",
+                "--target",
+                "erase_flash"
+            ],
+            "group": "build",
+            "problemMatcher": "$gcc",
+            "detail": "擦除芯片后编译并下载"
+        },
+        {
+            "label": "Build (仅编译)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build/Debug"
+            ],
+            "group": "build",
+            "problemMatcher": "$gcc",
+            "detail": "仅编译，不下载"
+        }
+    ]
+}
