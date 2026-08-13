@@ -1,4 +1,4 @@
 CompileFlags:
   CompilationDatabase: build/Debug
   Add:
-    - '--query-driver=arm-none-eabi-gcc*'
+    - --query-driver=arm-none-eabi-gcc*
