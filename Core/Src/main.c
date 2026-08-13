@@ -26,10 +26,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "oled.h"
-#include "AHT20.h"
-#include "getvoltage.h"
-#include <math.h>
+#include "app_entry.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,8 +36,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define K 30.0f //将获取光敏电阻的ADC值进行转化的相关参数
-#define N 1.5f
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -58,18 +54,18 @@
 void SystemClock_Config(void);
 void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
-float voltage_to_light(float voltage);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-volatile uint8_t oled_light = 1;  // 1=亮, 0=灭
-#define DEBOUNCE_MS  200   // 防抖时间200ms
-// 每个按键独立的防抖计时器
-uint32_t last_tick_switch = 0;  // SWITCH按键防抖
-uint32_t last_tick_speed  = 0;  // SPEED按键防抖
-uint32_t last_tick_light  = 0;  // LIGHT按键防抖
-uint8_t fan_frame = 0;  // 当前风扇帧
+/* 按键消抖时间窗口 (ms) */
+#define DEBOUNCE_MS  200U
+
+/* 各按键独立防抖计时器（仅 ISR 访问） */
+static uint32_t s_last_tick_switch = 0;
+static uint32_t s_last_tick_speed  = 0;
+static uint32_t s_last_tick_light  = 0;
 /* USER CODE END 0 */
 
 /**
@@ -106,19 +102,10 @@ int main(void)
   MX_ADC3_Init();
   MX_TIM12_Init();
   /* USER CODE BEGIN 2 */
-HAL_GPIO_WritePin(LED_GREEN_GPIO_Port,LED_GREEN_Pin,GPIO_PIN_RESET);
-  AHT20_Init();
-  HAL_Delay(40);
-  OLED_Init();
-__HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_1, 0);  //先确保占空比为0
-  HAL_TIM_PWM_Start(&htim12,TIM_CHANNEL_1);
-  
- //HAL_GPIO_WritePin(PWM_GPIO_Port,PWM_Pin,GPIO_PIN_RESET);
-  char tmp[20]={};
-  char hum[20]={};
-  float LS1_voltage=0.0f;
-  float LS1=0.0f;
-  char LS1_msg[20]={};
+  /* 点亮绿色 LED（低电平点亮） */
+  HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, GPIO_PIN_RESET);
+
+  /* 注意：传感器/OLED/风扇的初始化在 App_Entry() 中完成 */
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -137,41 +124,7 @@ __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_1, 0);  //先确保占空比为0
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    LS1_voltage=Get_Voltage(&hadc3);//获取光敏传感器电压值
-     LS1=voltage_to_light(LS1_voltage);
-     sprintf(LS1_msg,"光照:%0.1f",100-LS1);
-      
-     //////////////////////
-     AHT20_measure();
-     AHT20_get_data();
-      //
-     sprintf(tmp,"温度:%0.1f℃",temperature);
-     sprintf(hum,"湿度:%0.1f%%",humidity);
-    ////////////////////////////
-    OLED_NewFrame();
-      if(__HAL_TIM_GET_COMPARE(&htim12,TIM_CHANNEL_1)!=0)
-      {
-          switch(fan_frame)
-            {
-            case 0:OLED_DrawImage(70,2,&fan0Img,OLED_COLOR_NORMAL);break;
-            case 1:OLED_DrawImage(70,2,&fan1Img,OLED_COLOR_NORMAL);break;
-            }
-      }
-      else
-      {
-          OLED_DrawImage(70,2,&fan0Img,OLED_COLOR_NORMAL);
-      }
-    fan_frame++;
-    if (fan_frame > 1)
-        fan_frame = 0;
-    //OLED_DrawImage(5,40,&sunImg,OLED_COLOR_NORMAL);
-    //OLED_DrawImage(20,40,&moonImg,OLED_COLOR_NORMAL);
-    OLED_PrintString(2,38,LS1_msg,&font12x12,OLED_COLOR_NORMAL);//打印光照强度
-     
-    OLED_PrintString(2, 2,tmp, &font12x12, OLED_COLOR_NORMAL);
-    OLED_PrintString(2, 20,hum, &font12x12, OLED_COLOR_NORMAL);
-    OLED_ShowFrame();
-    HAL_Delay(500);
+    /* 调度器接管后永远不会执行到这里。所有业务逻辑已迁移到 RTOS 任务中。 */
   }
   /* USER CODE END 3 */
 }
@@ -222,75 +175,37 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-float voltage_to_light(float voltage)
-{
-    float lux = K * powf(voltage, N);
-    // 限幅到 0~100
-    if (lux > 100) lux = 100;
-    if (lux < 0)   lux = 0;
-    return lux;
-}
-
+/**
+ * @brief EXTI 中断回调：消抖后把按键事件推入消息队列
+ * @note  ISR 上下文只做两件事：时间窗消抖 + 入队。
+ *        状态机、PWM、OLED 等耗时操作全部在 FanCtrlTask 中完成。
+ */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
     uint32_t now = HAL_GetTick();
 
-    // ---- SWITCH 按键：风扇 开/关 切换 ----
+    /* ---- SWITCH 按键 ---- */
     if (GPIO_Pin == SWITCH_Pin)
     {
-        if (now - last_tick_switch < DEBOUNCE_MS) return;
-        last_tick_switch = now;
-
-        if (__HAL_TIM_GET_COMPARE(&htim12, TIM_CHANNEL_1) == 0)
-        {
-            __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_1, 4199);  // 全速
-        }
-        else
-        {
-            __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_1, 0);     // 关闭
-        }
+        if (now - s_last_tick_switch < DEBOUNCE_MS) return;
+        s_last_tick_switch = now;
+        App_NotifyBtnFromISR(BTN_EVT_SWITCH);
     }
 
-    // ---- SPEED 按键：风扇半速 / 全速切换 ----
+    /* ---- SPEED 按键 ---- */
     if (GPIO_Pin == SPEED_Pin)
     {
-        if (now - last_tick_speed < DEBOUNCE_MS) return;
-        last_tick_speed = now;
-
-        uint32_t cmp = __HAL_TIM_GET_COMPARE(&htim12, TIM_CHANNEL_1);
-
-        if (cmp == 0)
-        {
-            // 当前关闭 → 启动半速
-            __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_1, 2100);
-        }
-        else if (cmp <= 2100)
-        {
-            // 当前半速 切换全速
-            __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_1, 4199);
-        }
-        else
-        {
-            // 当前全速 切换半速
-            __HAL_TIM_SET_COMPARE(&htim12, TIM_CHANNEL_1, 2100);
-        }
+        if (now - s_last_tick_speed < DEBOUNCE_MS) return;
+        s_last_tick_speed = now;
+        App_NotifyBtnFromISR(BTN_EVT_SPEED);
     }
 
-    // ---- LIGHT 按键：OLED 亮/灭 切换 
+    /* ---- LIGHT 按键 ---- */
     if (GPIO_Pin == LIGHT_Pin)
     {
-        if (now - last_tick_light < DEBOUNCE_MS) return;
-        last_tick_light = now;
-
-        oled_light = !oled_light;
-        if (oled_light)
-        {
-            OLED_DisPlay_On();
-        }
-        else
-        {
-            OLED_DisPlay_Off();
-        }
+        if (now - s_last_tick_light < DEBOUNCE_MS) return;
+        s_last_tick_light = now;
+        App_NotifyBtnFromISR(BTN_EVT_LIGHT);
     }
 }
 /* USER CODE END 4 */

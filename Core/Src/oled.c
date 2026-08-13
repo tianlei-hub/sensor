@@ -30,6 +30,9 @@
 // OLED器件地址
 #define OLED_ADDRESS 0x78
 
+// I2C 传输超时（避免设备未连接时永久卡死）
+#define OLED_I2C_TIMEOUT 50
+
 // OLED参数
 #define OLED_PAGE 8            // OLED页数
 #define OLED_ROW 8 * OLED_PAGE // OLED行数
@@ -49,7 +52,7 @@ uint8_t OLED_GRAM[OLED_PAGE][OLED_COLUMN];
  */
 void OLED_Send(uint8_t *data, uint8_t len)
 {
-  HAL_I2C_Master_Transmit(&hi2c1, OLED_ADDRESS, data, len, HAL_MAX_DELAY);
+  HAL_I2C_Master_Transmit(&hi2c1, OLED_ADDRESS, data, len, OLED_I2C_TIMEOUT);
 }
 
 /**

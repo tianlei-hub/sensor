@@ -46,16 +46,25 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 file(GLOB USER_SOURCES "Core/Src/*.c" "Core/Src/*.C")
 # 排除 CubeMX 已管理的 system_stm32f4xx.c（在 STM32_Drivers 库中已编译）
 list(FILTER USER_SOURCES EXCLUDE REGEX "system_stm32f4xx\\.[cC]$")
-message("User sources: ${USER_SOURCES}")
+
+# 自动收集应用层/驱动层/服务层源文件
+file(GLOB APP_SOURCES      "App/*.c")
+file(GLOB BSP_SOURCES      "BSP/*.c")
+file(GLOB SERVICE_SOURCES  "Services/*.c")
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${USER_SOURCES}
+    ${APP_SOURCES}
+    ${BSP_SOURCES}
+    ${SERVICE_SOURCES}
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined include paths
+    App
+    BSP
+    Services
 )
 
 # Add project symbols (macros)
