@@ -17,3 +17,6 @@ mx.scratch
 # 系统文件
 Thumbs.db
 Desktop.ini
+
+# 敏感信息：含 WiFi 密码 / 云平台 Token，禁止提交
+访问云服务器参数.txt

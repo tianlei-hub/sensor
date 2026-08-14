@@ -18,6 +18,7 @@
 void TaskSensor(void *argument);
 void TaskDisplay(void *argument);
 void TaskFan(void *argument);
+void TaskCloud(void *argument);
 
 /* ============ 全局句柄 ============ */
 osMessageQueueId_t g_btn_event_queue = NULL;
@@ -43,6 +44,11 @@ static const osThreadAttr_t s_fan_attr = {
     .stack_size = 512 * 4,
     .priority = osPriorityNormal,
 };
+static const osThreadAttr_t s_cloud_attr = {
+    .name = "task_cloud",
+    .stack_size = 1024 * 4,              /* 浮点 snprintf 栈开销大，给足余量 */
+    .priority = osPriorityBelowNormal,   /* 网络慢，不挡显示/按键/风扇 */
+};
 
 void App_Entry(void)
 {
@@ -62,6 +68,7 @@ void App_Entry(void)
     g_sensor_task_handle  = osThreadNew(TaskSensor,  NULL, &s_sensor_attr);
     g_display_task_handle = osThreadNew(TaskDisplay, NULL, &s_display_attr);
     g_fan_task_handle     = osThreadNew(TaskFan,     NULL, &s_fan_attr);
+    osThreadNew(TaskCloud, NULL, &s_cloud_attr);
 }
 
 void App_NotifyBtnFromISR(BtnEvent_e evt)

@@ -155,11 +155,28 @@ git checkout freertos-upgrade   # 回到 RTOS 版
 
 ---
 
-## 六、路线图
+## 六、Web 数据可视化看板
+
+新增 `web/` 目录，提供浏览器端数据看板，构成「设备端 → OneNET 云 → 可视化」的完整闭环：
+
+| 文件 | 作用 |
+|------|------|
+| `web/dashboard.html` | 单文件看板：温湿度/光照实时卡片 + 历史趋势曲线（Chart.js）+ 设备状态。内置模拟数据引擎，开箱即用、双击即可演示；可切换 OneNET 实时数据 |
+| `web/bridge.js` | OneNET 数据桥接（Node.js）：本地完成 access_key HMAC-SHA1 签名并调 OneNET API，绕过浏览器跨域限制，暴露 `/api/latest` |
+
+**演示方式**：
+
+1. **模拟演示**：直接双击打开 `web/dashboard.html`，默认即为模拟数据源，无需任何依赖。
+2. **真实数据**：设备在线并完成 MQTT 上报后，运行 `node web/bridge.js`（先改脚本头部 access_key / product_id / device_name），再把看板数据源切到「OneNET 实时」。
+
+---
+
+## 七、路线图
 
 - [x] 裸机多传感器采集与显示
 - [x] CMSIS-RTOS v2 四层架构重构
+- [x] ATK-MB026 (ESP32-C3) WiFi + MQTT 云接入（OneNET）
+- [x] Web 数据可视化看板
 - [ ] IWDG 硬件看门狗
 - [ ] USART1 CLI 调试命令行
-- [ ] ESP8266 (ATK-MB026) WiFi 远程访问
-- [ ] Web 仪表盘 + 微信小程序
+- [ ] 微信小程序

@@ -68,7 +68,9 @@
 #define configTICK_RATE_HZ                       ((TickType_t)1000)
 #define configMAX_PRIORITIES                     ( 56 )
 #define configMINIMAL_STACK_SIZE                 ((uint16_t)128)
-#define configTOTAL_HEAP_SIZE                    ((size_t)15360)
+/* 注意：原值 15360（CubeMX 默认）在加入 task_cloud（4KB 栈）后不够用，
+   osThreadNew(TaskCloud) 会静默失败。RAM 128KB 有富余，扩大到 24KB。 */
+#define configTOTAL_HEAP_SIZE                    ((size_t)24576)
 #define configMAX_TASK_NAME_LEN                  ( 16 )
 #define configUSE_TRACE_FACILITY                 1
 #define configUSE_16_BIT_TICKS                   0

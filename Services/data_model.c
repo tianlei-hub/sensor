@@ -59,3 +59,21 @@ void DataModel_ToggleDisplay(void)
     g_sensor_data.display_on = (g_sensor_data.display_on == 0U) ? 1U : 0U;
     osMutexRelease(s_data_mutex);
 }
+
+void DataModel_WriteCloudState(CloudState_e state)
+{
+    if (s_data_mutex == NULL) return;
+
+    osMutexAcquire(s_data_mutex, osWaitForever);
+    g_sensor_data.cloud_state = (uint8_t)state;
+    osMutexRelease(s_data_mutex);
+}
+
+void DataModel_WriteCloudDetail(uint8_t detail)
+{
+    if (s_data_mutex == NULL) return;
+
+    osMutexAcquire(s_data_mutex, osWaitForever);
+    g_sensor_data.cloud_detail = detail;
+    osMutexRelease(s_data_mutex);
+}

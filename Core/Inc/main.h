@@ -70,6 +70,8 @@ void Error_Handler(void);
 #define LS1_GPIO_Port GPIOF
 #define LED_GREEN_Pin GPIO_PIN_10
 #define LED_GREEN_GPIO_Port GPIOF
+#define WIFI_RST_Pin GPIO_PIN_4
+#define WIFI_RST_GPIO_Port GPIOA
 #define PWM_Pin GPIO_PIN_14
 #define PWM_GPIO_Port GPIOB
 #define BI_Pin GPIO_PIN_15

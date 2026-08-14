@@ -21,6 +21,7 @@ void TaskDisplay(void *argument)
     char         str_temp[20]  = {0};
     char         str_humid[20] = {0};
     char         str_light[20] = {0};
+    char         str_cloud[12] = {0};
 
     for (;;) {
         /* 等待传感器任务刷新通知 */
@@ -47,6 +48,39 @@ void TaskDisplay(void *argument)
         snprintf(str_temp,  sizeof(str_temp),  "温度:%0.1f℃", data.temperature);
         snprintf(str_humid, sizeof(str_humid), "湿度:%0.1f%%", data.humidity);
         snprintf(str_light, sizeof(str_light), "光照:%0.1f",  data.light);
+        switch (data.cloud_state) {
+            case CLOUD_ONLINE:
+                snprintf(str_cloud, sizeof(str_cloud), "CLD:ON");
+                break;
+            case CLOUD_CONNECTING:
+                snprintf(str_cloud, sizeof(str_cloud), "CLD:..");
+                break;
+            case CLOUD_INIT_FAIL:
+                snprintf(str_cloud, sizeof(str_cloud), "CLD:INIT");
+                break;
+            case CLOUD_WIFI_FAIL:
+                snprintf(str_cloud, sizeof(str_cloud), "CLD:WIFI");
+                break;
+            case CLOUD_TCP_FAIL:
+                snprintf(str_cloud, sizeof(str_cloud), "CLD:TCP");
+                break;
+            case CLOUD_MQTT_FAIL:
+                if (data.cloud_detail == 255U) {
+                    snprintf(str_cloud, sizeof(str_cloud), "CLD:MTMO");
+                } else if ((data.cloud_detail >= 1U) && (data.cloud_detail <= 5U)) {
+                    snprintf(str_cloud, sizeof(str_cloud), "CLD:MT%u",
+                             (unsigned)data.cloud_detail);
+                } else {
+                    snprintf(str_cloud, sizeof(str_cloud), "CLD:MQTT");
+                }
+                break;
+            case CLOUD_AT_FAIL:
+                snprintf(str_cloud, sizeof(str_cloud), "CLD:AT");
+                break;
+            default:
+                snprintf(str_cloud, sizeof(str_cloud), "CLD:OFF");
+                break;
+        }
 
         /* ---- 绘制帧 ---- */
         OLED_NewFrame();
@@ -67,6 +101,7 @@ void TaskDisplay(void *argument)
         OLED_PrintString(2, 38, str_light, &font12x12, OLED_COLOR_NORMAL);
         OLED_PrintString(2, 2,  str_temp,  &font12x12, OLED_COLOR_NORMAL);
         OLED_PrintString(2, 20, str_humid, &font12x12, OLED_COLOR_NORMAL);
+        OLED_PrintString(2, 52, str_cloud, &font12x12, OLED_COLOR_NORMAL);
         OLED_ShowFrame();
     }
 }

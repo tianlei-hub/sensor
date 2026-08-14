@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>环境监测终端 · 数据看板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1220;
+    --surface: #161d2e;
+    --surface-2: #1b2438;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --text: #e6ebf5;
+    --text-dim: #8b96ad;
+    --text-faint: #5c6880;
+    --temp: #ff6b5e;
+    --humi: #4aa3ff;
+    --light: #ffc53d;
+    --ok: #34c759;
+    --warn: #ff9f0a;
+    --err: #ff453a;
+    --accent: #5b8cff;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  /* 顶栏 */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, #5b8cff, #7f6bff);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; color: #fff;
+  }
+  .brand h1 { font-size: 19px; font-weight: 600; letter-spacing: .3px; }
+  .brand .sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+  .top-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .src-switch { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .src-switch button {
+    background: none; border: none; color: var(--text-dim);
+    padding: 9px 16px; font-size: 13px; cursor: pointer; font-family: inherit;
+    transition: all .15s;
+  }
+  .src-switch button.active { background: var(--accent); color: #fff; }
+  .conn {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text-dim);
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 10px;
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-faint); }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 8px rgba(52,199,89,.6); }
+  .dot.warn { background: var(--warn); box-shadow: 0 0 8px rgba(255,159,10,.6); }
+  .dot.err { background: var(--err); box-shadow: 0 0 8px rgba(255,69,58,.6); }
+
+  /* 指标卡 */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 18px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 22px;
+    position: relative; overflow: hidden;
+  }
+  .card .label { font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+  .card .label .ico { width: 10px; height: 10px; border-radius: 3px; }
+  .card .value { font-size: 42px; font-weight: 650; margin-top: 12px; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  .card .unit { font-size: 18px; font-weight: 500; margin-left: 4px; color: var(--text-dim); }
+  .card .foot { font-size: 12px; color: var(--text-faint); margin-top: 8px; }
+  .card.temp .value { color: var(--temp); }
+  .card.humi .value { color: var(--humi); }
+  .card.light .value { color: var(--light); }
+
+  /* 图 + 状态 */
+  .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; }
+  .panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+  .chart-box { position: relative; height: 280px; }
+
+  /* 状态卡 */
+  .status-list { display: flex; flex-direction: column; gap: 14px; }
+  .status-item { display: flex; align-items: center; justify-content: space-between; }
+  .status-item .k { font-size: 13px; color: var(--text-dim); }
+  .status-item .v { font-size: 13px; font-weight: 600; }
+  .pill { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .pill.off { background: rgba(255,255,255,.06); color: var(--text-dim); }
+  .pill.half { background: rgba(255,159,10,.16); color: var(--warn); }
+  .pill.full { background: rgba(255,69,58,.16); color: var(--err); }
+  .pill.online { background: rgba(52,199,89,.16); color: var(--ok); }
+  .pill.connecting { background: rgba(255,159,10,.16); color: var(--warn); }
+  .pill.offline { background: rgba(255,69,58,.16); color: var(--err); }
+  .pill.on { background: rgba(91,140,255,.16); color: var(--accent); }
+
+  /* 设置 */
+  .settings { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 22px; }
+  .settings summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text); list-style: none; }
+  .settings summary::before { content: "▸ "; color: var(--text-dim); }
+  .settings[open] summary::before { content: "▾ "; }
+  .settings-body { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; color: var(--text-dim); }
+  .field input {
+    background: var(--surface-2); border: 1px solid var(--border-strong);
+    color: var(--text); border-radius: 8px; padding: 9px 12px; font-size: 13px;
+    font-family: "SF Mono", "Consolas", monospace;
+  }
+  .hint { font-size: 12px; color: var(--text-faint); line-height: 1.7; margin-top: 14px; }
+  .hint code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; color: var(--text-dim); font-family: "SF Mono", "Consolas", monospace; }
+
+  @media (max-width: 760px) {
+    .cards { grid-template-columns: 1fr; }
+    .grid { grid-template-columns: 1fr; }
+    .settings-body { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="logo">S</div>
+      <div>
+        <h1>环境监测终端 · 数据看板</h1>
+        <div class="sub">STM32F407 + FreeRTOS · AHT20 / 光敏 / OneNET MQTT</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <div class="src-switch" id="srcSwitch">
+        <button data-src="sim" class="active">模拟数据</button>
+        <button data-src="onenet">OneNET 实时</button>
+      </div>
+      <div class="conn" id="conn">
+        <span class="dot ok" id="connDot"></span>
+        <span id="connText">已连接 · 模拟源</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="cards">
+    <div class="card temp">
+      <div class="label"><span class="ico" style="background:var(--temp)"></span>当前温度</div>
+      <div class="value"><span id="tempVal">--</span><span class="unit">°C</span></div>
+      <div class="foot">数据流 CurrentTemperature · 每 10s 上报</div>
+    </div>
+    <div class="card humi">
+      <div class="label"><span class="ico" style="background:var(--humi)"></span>当前湿度</div>
+      <div class="value"><span id="humiVal">--</span><span class="unit">%RH</span></div>
+      <div class="foot">数据流 CurrentHumidity · 每 10s 上报</div>
+    </div>
+    <div class="card light">
+      <div class="label"><span class="ico" style="background:var(--light)"></span>光照强度</div>
+      <div class="value"><span id="lightVal">--</span><span class="unit">%</span></div>
+      <div class="foot">数据流 LightIntensity · 本地采样（光敏 ADC）</div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <h2>温湿度历史趋势</h2>
+      <div class="chart-box"><canvas id="trendChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>设备状态</h2>
+      <div class="status-list">
+        <div class="status-item">
+          <span class="k">风扇转速</span>
+          <span class="v"><span class="pill" id="fanPill">--</span></span>
+        </div>
+        <div class="status-item">
+          <span class="k">OLED 显示</span>
+          <span class="v"><span class="pill" id="oledPill">--</span></span>
+        </div>
+        <div class="status-item">
+          <span class="k">云连接</span>
+          <span class="v"><span class="pill" id="cloudPill">--</span></span>
+        </div>
+        <div class="status-item">
+          <span class="k">数据更新计数</span>
+          <span class="v" style="font-variant-numeric:tabular-nums" id="cntVal">0</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <details class="settings" id="settingsPanel">
+    <summary>数据源设置 · OneNET 真实接入</summary>
+    <div class="settings-body">
+      <div class="field">
+        <label>桥接服务地址（运行 bridge.js 后填）</label>
+        <input id="bridgeUrl" type="text" value="http://localhost:8080/api/latest">
+      </div>
+      <div class="field">
+        <label>刷新周期（毫秒，OneNET 上报周期为 10s）</label>
+        <input id="pollMs" type="number" value="10000" min="2000" step="1000">
+      </div>
+    </div>
+    <div class="hint">
+      实时数据需要设备在线并完成 MQTT 上报。由于浏览器跨域限制，前端不能直接调用 OneNET API，
+      请先在本目录运行 <code>node bridge.js</code> 启动本地桥接（内部完成 access_key 签名并拉取真实数据），
+      再将数据源切到「OneNET 实时」。桥接脚本的配置项（access_key / product_id / device_name）见 <code>bridge.js</code> 头部。
+    </div>
+  </details>
+
+</div>
+
+<script>
+/* ==================== 常量与状态 ==================== */
+const MAX_POINTS = 60;               // 曲线保留点数（模拟源 1s 采样 → 1 分钟窗口）
+
+const state = {
+  source: 'sim',                      // 'sim' | 'onenet'
+  temp: null, humi: null, light: null,
+  fan: 'OFF', oled: true, cloud: 'ONLINE',
+  cnt: 0,
+  ts: [], tempSeries: [], humiSeries: []
+};
+
+/* ==================== 模拟数据引擎 ==================== */
+const sim = {
+  t: 26.4, h: 58.0, l: 42,
+  phase: 0,
+  fanTimer: 20
+};
+function simTick() {
+  sim.phase += 0.06;
+  // 温度：正弦慢漂 + 噪声
+  sim.t = 26.4 + Math.sin(sim.phase) * 1.6 + (Math.random() - 0.5) * 0.5;
+  // 湿度：与温度轻微负相关 + 噪声
+  sim.h = 58.0 - (sim.t - 26.4) * 1.8 + (Math.random() - 0.5) * 2.5;
+  sim.l = 42 + Math.sin(sim.phase * 0.7) * 22 + (Math.random() - 0.5) * 6;
+  sim.l = Math.max(5, Math.min(95, sim.l));
+  // 偶发切换风扇
+  sim.fanTimer -= 1;
+  if (sim.fanTimer <= 0) {
+    sim.fanTimer = 15 + Math.floor(Math.random() * 20);
+    const seq = ['OFF', 'HALF', 'FULL'];
+    state.fan = seq[(seq.indexOf(state.fan) + 1) % seq.length];
+  }
+  return {
+    temperature: +sim.t.toFixed(1),
+    humidity: +sim.h.toFixed(1),
+    light: +sim.l.toFixed(0),
+    fan: state.fan,
+    cloud: 'ONLINE'
+  };
+}
+
+/* ==================== 数据获取（按源分发） ==================== */
+function applySample(s) {
+  if (s.temperature != null) state.temp = s.temperature;
+  if (s.humidity != null)    state.humi = s.humidity;
+  if (s.light != null)       state.light = s.light;
+  if (s.fan)                 state.fan = s.fan;
+  if (s.cloud)               state.cloud = s.cloud;
+  state.cnt++;
+
+  const now = new Date();
+  const t = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+  state.ts.push(t);
+  state.tempSeries.push(state.temp);
+  state.humiSeries.push(state.humi);
+  if (state.ts.length > MAX_POINTS) {
+    state.ts.shift();
+    state.tempSeries.shift();
+    state.humiSeries.shift();
+  }
+  render();
+}
+
+async function pollOneNet() {
+  const url = document.getElementById('bridgeUrl').value.trim();
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    applySample({
+      temperature: j.temperature ?? null,
+      humidity: j.humidity ?? null,
+      light: j.light ?? null,
+      fan: j.fan || 'OFF',
+      cloud: j.online ? 'ONLINE' : 'OFFLINE'
+    });
+    setConn(true, '已连接 · OneNET 实时');
+  } catch (e) {
+    setConn(false, '桥接未连接（需运行 bridge.js）');
+  }
+}
+
+/* ==================== 渲染 ==================== */
+const FAN_LABEL = { OFF: '关闭', HALF: '半速', FULL: '全速' };
+function render() {
+  document.getElementById('tempVal').textContent = state.temp == null ? '--' : state.temp.toFixed(1);
+  document.getElementById('humiVal').textContent = state.humi == null ? '--' : state.humi.toFixed(1);
+  document.getElementById('lightVal').textContent = state.light == null ? '--' : Math.round(state.light);
+  document.getElementById('cntVal').textContent = state.cnt;
+
+  const fanPill = document.getElementById('fanPill');
+  fanPill.textContent = FAN_LABEL[state.fan] || state.fan;
+  fanPill.className = 'pill ' + { OFF: 'off', HALF: 'half', FULL: 'full' }[state.fan];
+
+  const oledPill = document.getElementById('oledPill');
+  oledPill.textContent = state.oled ? '亮' : '灭';
+  oledPill.className = 'pill ' + (state.oled ? 'on' : 'off');
+
+  const cloudPill = document.getElementById('cloudPill');
+  cloudPill.textContent = { ONLINE: '在线', OFFLINE: '离线', CONNECTING: '连接中' }[state.cloud] || state.cloud;
+  cloudPill.className = 'pill ' + ({ ONLINE: 'online', OFFLINE: 'offline', CONNECTING: 'connecting' }[state.cloud] || 'off');
+
+  updateChart();
+}
+
+function setConn(ok, text) {
+  const dot = document.getElementById('connDot');
+  dot.className = 'dot ' + (ok ? 'ok' : 'err');
+  document.getElementById('connText').textContent = text;
+}
+
+/* ==================== 图表 ==================== */
+const ctx = document.getElementById('trendChart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: state.ts,
+    datasets: [
+      { label: '温度 °C', data: state.tempSeries, borderColor: '#ff6b5e', backgroundColor: 'rgba(255,107,94,.12)', borderWidth: 2, pointRadius: 0, tension: .35, fill: true, yAxisID: 'y' },
+      { label: '湿度 %RH', data: state.humiSeries, borderColor: '#4aa3ff', backgroundColor: 'rgba(74,163,255,.12)', borderWidth: 2, pointRadius: 0, tension: .35, fill: true, yAxisID: 'y1' }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: '#8b96ad', usePointStyle: true, pointStyle: 'line', boxWidth: 24, font: { size: 12 } } }
+    },
+    scales: {
+      x: { ticks: { color: '#5c6880', maxTicksLimit: 8, font: { size: 11 } }, grid: { color: 'rgba(255,255,255,.04)' } },
+      y: { position: 'left', title: { display: true, text: '温度 °C', color: '#ff6b5e', font: { size: 11 } }, ticks: { color: '#8b96ad', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,.06)' } },
+      y1: { position: 'right', title: { display: true, text: '湿度 %RH', color: '#4aa3ff', font: { size: 11 } }, ticks: { color: '#8b96ad', font: { size: 11 } }, grid: { drawOnChartArea: false } }
+    }
+  }
+});
+function updateChart() {
+  chart.data.labels = state.ts;
+  chart.data.datasets[0].data = state.tempSeries;
+  chart.data.datasets[1].data = state.humiSeries;
+  chart.update('none');
+}
+
+/* ==================== 调度循环 ==================== */
+let pollTimer = null;
+function setSource(src) {
+  state.source = src;
+  document.querySelectorAll('#srcSwitch button').forEach(b => b.classList.toggle('active', b.dataset.src === src));
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (src === 'sim') {
+    setConn(true, '已连接 · 模拟源');
+    pollTimer = setInterval(() => applySample(simTick()), 1000);
+  } else {
+    pollOneNet();
+    pollTimer = setInterval(() => pollOneNet(), parseInt(document.getElementById('pollMs').value) || 10000);
+  }
+}
+document.getElementById('srcSwitch').addEventListener('click', e => {
+  if (e.target.tagName === 'BUTTON') setSource(e.target.dataset.src);
+});
+
+/* ==================== 启动 ==================== */
+setSource('sim');
+</script>
+</body>
+</html>
